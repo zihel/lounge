@@ -11,10 +11,14 @@ var io = require("socket.io");
 var dns = require("dns");
 var Helper = require("./helper");
 var ldap = require("ldapjs");
+var ServeStatic = require("serve-static");
 
 var manager = null;
 var ldapclient = null;
 var authFunction = localAuth;
+var packages = null;
+var stylesheets = [];
+var scripts = [];
 
 module.exports = function() {
 	manager = new ClientManager();
@@ -22,9 +26,28 @@ module.exports = function() {
 	var app = express()
 		.use(allRequests)
 		.use(index)
+		.use(clientPackages)
 		.use(express.static("client"));
 
 	var config = Helper.config;
+
+	packages = require("./packages");
+	packages.forEachProp("client", function(pkgClient, pkgConfig) {
+		if ("stylesheets" in pkgClient && pkgClient.stylesheets instanceof Array) {
+			pkgClient.stylesheets.forEach(function(css) {
+				stylesheets.push(pkgConfig.webroot + css);
+			});
+		}
+
+		if ("scripts" in pkgClient && pkgClient.scripts instanceof Array) {
+			pkgClient.scripts.forEach(function(script) {
+				scripts.push(pkgConfig.webroot + script);
+			});
+		}
+	});
+
+	packages.emit("httpServer", app);
+
 	var server = null;
 
 	if (config.public && (config.ldap || {}).enable) {
@@ -123,6 +146,10 @@ function index(req, res, next) {
 		}
 
 		var data = _.merge(
+			{
+				stylesheets: stylesheets,
+				scripts: scripts
+			},
 			pkg,
 			Helper.config
 		);
@@ -333,4 +360,13 @@ function auth(data) {
 			authFunction(client, data.user, data.password, authCallback);
 		}
 	}
+}
+
+function clientPackages(req, res, next) {
+	if (!req.url.startsWith("/packages/")) {
+		return next();
+	}
+
+	req.url = req.url.replace(/^\/packages\/([^?&#]*?)\/(.*)$/, "/$1/client/$2");
+	ServeStatic("packages/")(req, res, next);
 }
