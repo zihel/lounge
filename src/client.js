@@ -464,6 +464,42 @@ Client.prototype.clientDetach = function(socketId) {
 	delete this.attachedClients[socketId];
 };
 
+Client.prototype.searchMessages = function(userOptions) {
+	var options = {
+		query: userOptions.query,
+		caseSensitive: !!userOptions.caseSensitive
+	};
+
+	options.searchRegex = new RegExp(_.escapeRegExp(options.query), options.caseSensitive ? "" : "i");
+
+	var messages = [];
+	this.networks.forEach(function(network) {
+		messages = messages.concat(network.search(options));
+	});
+
+	var network = this.networks[0];
+	var chan = network.getChannel("Search Results");
+
+	if (typeof chan !== "undefined") {
+		network.channels = _.without(network.channels, chan);
+		this.emit("part", {
+			chan: chan.id
+		});
+	}
+
+	chan = new Chan({
+		type: Chan.Type.SEARCH,
+		name: "Search Results",
+		messages: messages,
+		options: options
+	});
+	network.channels.push(chan);
+	this.emit("join", {
+		network: network.id,
+		chan: chan
+	});
+};
+
 var timer;
 Client.prototype.save = function(force) {
 	var client = this;
