@@ -605,6 +605,22 @@ $(function() {
 			desktopNotificationsCheckbox.attr("disabled", true);
 			desktopNotificationsCheckbox.attr("checked", false);
 		}
+		
+		// Protocol handler
+		var defaultClientButton = $("#make-default-client");
+		
+		if (window.navigator.registerProtocolHandler) {
+			defaultClientButton.on("click", function() {
+				var uri = document.location.origin + document.location.pathname + "?uri=%s";
+
+				window.navigator.registerProtocolHandler("irc", uri, "The Lounge IRC");
+				window.navigator.registerProtocolHandler("ircs", uri, "The Lounge IRC");
+
+				return false;
+			});
+		} else {
+			defaultClientButton.hide();
+		}
 	}());
 
 	var viewport = $("#viewport");
@@ -1111,6 +1127,7 @@ $(function() {
 			}
 		});
 	});
+
 	if ($("body").hasClass("public")) {
 		$("#connect").one("show", function() {
 			var params = window.URI(document.location.search);
