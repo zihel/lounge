@@ -1,38 +1,21 @@
-[![#thelounge IRC channel on freenode](https://img.shields.io/badge/irc%20channel-%23thelounge%20on%20freenode-blue.svg)](https://avatar.playat.ch:1000/)
-[![npm version](https://img.shields.io/npm/v/thelounge.svg)](https://www.npmjs.org/package/thelounge)
-[![Travis CI Build Status](https://travis-ci.org/thelounge/lounge.svg?branch=master)](https://travis-ci.org/thelounge/lounge)
-[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/deymtp0lldq78s8t/branch/master?svg=true)](https://ci.appveyor.com/project/astorije/lounge/branch/master)
-[![Dependency Status](https://david-dm.org/thelounge/lounge.svg)](https://david-dm.org/thelounge/lounge)
-[![devDependency Status](https://david-dm.org/thelounge/lounge/dev-status.svg)](https://david-dm.org/thelounge/lounge?type=dev)
-
 # The Lounge
 
-__What is it?__
+[![#thelounge IRC channel on freenode](https://img.shields.io/badge/freenode-%23thelounge-BA68C8.svg)](https://avatar.playat.ch:1000/)
+[![npm version](https://img.shields.io/npm/v/thelounge.svg)](https://www.npmjs.org/package/thelounge)
+[![Travis CI Build Status](https://img.shields.io/travis/thelounge/lounge/master.svg?label=linux+build)](https://travis-ci.org/thelounge/lounge)
+[![AppVeyor Build Status](https://img.shields.io/appveyor/ci/astorije/lounge/master.svg?label=windows+build)](https://ci.appveyor.com/project/astorije/lounge/branch/master)
+[![Dependencies Status](https://img.shields.io/david/thelounge/lounge.svg)](https://david-dm.org/thelounge/lounge)
+[![Developer Dependencies Status](https://img.shields.io/david/dev/thelounge/lounge.svg)](https://david-dm.org/thelounge/lounge?type=dev)
 
-The Lounge is a web IRC client that you host on your own server.
+The Lounge is a modern web IRC client designed for self-hosting.
 
-*This is the official, community-managed fork of @erming's great initiative, the [Shout](https://github.com/erming/shout) project.*
+To learn more about configuration, usage and features of The Lounge, take a look at [the website](https://thelounge.github.io).
 
-__What features does it have?__
+<p align="center">
+	<img src="https://cloud.githubusercontent.com/assets/5481612/19623041/9bbaec40-9888-11e6-9961-8f3e0493ba30.png" width="550">
+</p>
 
-- Multiple user support
-- Stays connected even when you close the browser
-- Connect from multiple devices at once
-- Responsive layout — works well on your smartphone
-- _.. and more!_
-
-__Why the fork?__
-
-We felt that the original [Shout](https://github.com/erming/shout) project
-"stagnated" a little because its original author wanted it to remain his pet
-project (which is a perfectly fine thing!).
-
-A bunch of people, excited about doing things a bit differently than the upstream
-project forked it under a new name: “The Lounge”.
-
-This fork aims to be community managed, meaning that the decisions are taken
-in a collegial fashion, and that a bunch of maintainers should be able to make
-the review process quicker and more streamlined.
+The Lounge is the official and community-managed fork of [Shout](https://github.com/erming/shout), by [Mattias Erming](https://github.com/erming).
 
 ## Installation and usage
 
@@ -61,8 +44,7 @@ lounge --help
 
 ### Running from source
 
-The following commands install the development version of The Lounge. A word of
-caution: while it is the most recent codebase, this is not production-ready!
+The following commands install the development version of The Lounge:
 
 ```sh
 git clone https://github.com/thelounge/lounge.git
@@ -70,6 +52,12 @@ cd lounge
 npm install
 npm start
 ```
+
+A word of caution:
+
+- While it is the most recent codebase, this is not production-ready!
+- It is not recommended to run this as root. However, if you decide to do so,
+  you will have to run `npm run build`.
 
 ## Development setup
 

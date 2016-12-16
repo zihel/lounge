@@ -2,7 +2,6 @@
 
 var _ = require("lodash");
 var pkg = require("../package.json");
-var bcrypt = require("bcrypt-nodejs");
 var Client = require("./client");
 var ClientManager = require("./clientManager");
 var express = require("express");
@@ -11,9 +10,9 @@ var io = require("socket.io");
 var dns = require("dns");
 var Helper = require("./helper");
 var ldap = require("ldapjs");
+var colors = require("colors/safe");
 
 var manager = null;
-var ldapclient = null;
 var authFunction = localAuth;
 
 module.exports = function() {
@@ -36,9 +35,19 @@ module.exports = function() {
 		server = server.createServer(app).listen(config.port, config.host);
 	} else {
 		server = require("spdy");
+		const keyPath = Helper.expandHome(config.https.key);
+		const certPath = Helper.expandHome(config.https.certificate);
+		if (!config.https.key.length || !fs.existsSync(keyPath)) {
+			log.error("Path to SSL key is invalid. Stopping server...");
+			process.exit();
+		}
+		if (!config.https.certificate.length || !fs.existsSync(certPath)) {
+			log.error("Path to SSL certificate is invalid. Stopping server...");
+			process.exit();
+		}
 		server = server.createServer({
-			key: fs.readFileSync(Helper.expandHome(config.https.key)),
-			cert: fs.readFileSync(Helper.expandHome(config.https.certificate))
+			key: fs.readFileSync(keyPath),
+			cert: fs.readFileSync(certPath)
 		}, app).listen(config.port, config.host);
 	}
 
@@ -51,9 +60,6 @@ module.exports = function() {
 	}
 
 	if (!config.public && (config.ldap || {}).enable) {
-		ldapclient = ldap.createClient({
-			url: config.ldap.url
-		});
 		authFunction = ldapAuth;
 	}
 
@@ -71,15 +77,22 @@ module.exports = function() {
 
 	manager.sockets = sockets;
 
-	var protocol = config.https.enable ? "https" : "http";
-	log.info("The Lounge v" + pkg.version + " is now running on", protocol + "://" + (config.host || "*") + ":" + config.port + "/", (config.public ? "in public mode" : "in private mode"));
-	log.info("Press ctrl-c to stop\n");
+	const protocol = config.https.enable ? "https" : "http";
+	const host = config.host || "*";
+
+	log.info(`The Lounge ${colors.green(Helper.getVersion())} is now running \
+using node ${colors.green(process.versions.node)} on ${colors.green(process.platform)} (${process.arch})`);
+	log.info(`Configuration file: ${colors.green(Helper.CONFIG_PATH)}`);
+	log.info(`Available on ${colors.green(protocol + "://" + host + ":" + config.port + "/")} \
+in ${config.public ? "public" : "private"} mode`);
+	log.info(`Press Ctrl-C to stop\n`);
 
 	if (!config.public) {
-		manager.loadUsers();
-		if (config.autoload) {
-			manager.autoload();
+		if ("autoload" in config) {
+			log.warn(`Autoloading users is now always enabled. Please remove the ${colors.yellow("autoload")} option from your configuration file.`);
 		}
+
+		manager.autoloadUsers();
 	}
 };
 
@@ -100,35 +113,28 @@ function allRequests(req, res, next) {
 	return next();
 }
 
-// Information to populate the About section in UI, either from npm or from git
-var gitCommit = null;
-try {
-	gitCommit = require("child_process")
-		.execSync("git rev-parse --short HEAD 2> /dev/null") // Returns hash of current commit
-		.toString()
-		.trim();
-} catch (e) {
-	// Not a git repository or git is not installed: treat it as npm release
-}
-
 function index(req, res, next) {
 	if (req.url.split("?")[0] !== "/") {
 		return next();
 	}
 
 	return fs.readFile("client/index.html", "utf-8", function(err, file) {
+		if (err) {
+			throw err;
+		}
+
 		var data = _.merge(
 			pkg,
 			Helper.config
 		);
-		data.gitCommit = gitCommit;
-		data.themes = fs.readdirSync("client/themes/").filter(function(file) {
-			return file.endsWith(".css");
+		data.gitCommit = Helper.getGitCommit();
+		data.themes = fs.readdirSync("client/themes/").filter(function(themeFile) {
+			return themeFile.endsWith(".css");
 		}).map(function(css) {
 			return css.slice(0, -4);
 		});
 		var template = _.template(file);
-		res.setHeader("Content-Security-Policy", "default-src *; connect-src 'self' ws: wss:; style-src * 'unsafe-inline'; script-src 'self'; child-src 'none'; object-src 'none'; form-action 'none'; referrer no-referrer;");
+		res.setHeader("Content-Security-Policy", "default-src *; connect-src 'self' ws: wss:; style-src * 'unsafe-inline'; script-src 'self'; child-src 'self'; object-src 'none'; form-action 'none'; referrer no-referrer;");
 		res.setHeader("Content-Type", "text/html");
 		res.writeHead(200);
 		res.end(template(data));
@@ -141,6 +147,13 @@ function init(socket, client) {
 		socket.on("auth", auth);
 	} else {
 		socket.emit("authorized");
+
+		client.ip = getClientIp(socket.request);
+
+		socket.on("disconnect", function() {
+			client.clientDetach(socket.id);
+		});
+		client.clientAttach(socket.id);
 
 		socket.on(
 			"input",
@@ -182,15 +195,14 @@ function init(socket, client) {
 						});
 						return;
 					}
-					if (!bcrypt.compareSync(old || "", client.config.password)) {
+					if (!Helper.password.compare(old || "", client.config.password)) {
 						socket.emit("change-password", {
 							error: "The current password field does not match your account password"
 						});
 						return;
 					}
 
-					var salt = bcrypt.genSaltSync(8);
-					var hash = bcrypt.hashSync(p1, salt);
+					var hash = Helper.password.hash(p1);
 
 					client.setPassword(hash, function(success) {
 						var obj = {};
@@ -210,7 +222,7 @@ function init(socket, client) {
 		socket.on(
 			"open",
 			function(data) {
-				client.open(data);
+				client.open(socket.id, data);
 			}
 		);
 		socket.on(
@@ -227,7 +239,7 @@ function init(socket, client) {
 		);
 		socket.join(client.id);
 		socket.emit("init", {
-			active: client.activeChannel,
+			active: client.lastActiveChannel,
 			networks: client.networks,
 			token: client.config.token || null
 		});
@@ -249,22 +261,42 @@ function reverseDnsLookup(socket, client) {
 }
 
 function localAuth(client, user, password, callback) {
-	var result = false;
-	try {
-		result = bcrypt.compareSync(password || "", client.config.password);
-	} catch (error) {
-		if (error === "Not a valid BCrypt hash.") {
-			log.error("User (" + user + ") with no local password set tried to sign in. (Probably a LDAP user)");
-		}
-		result = false;
-	} finally {
-		callback(result);
+	if (!client || !password) {
+		return callback(false);
 	}
+
+	if (!client.config.password) {
+		log.error("User", user, "with no local password set tried to sign in. (Probably a LDAP user)");
+		return callback(false);
+	}
+
+	var result = Helper.password.compare(password, client.config.password);
+
+	if (result && Helper.password.requiresUpdate(client.config.password)) {
+		var hash = Helper.password.hash(password);
+
+		client.setPassword(hash, function(success) {
+			if (success) {
+				log.info("User", client.name, "logged in and their hashed password has been updated to match new security requirements");
+			}
+		});
+	}
+
+	return callback(result);
 }
 
 function ldapAuth(client, user, password, callback) {
-	var userDN = user.replace(/([,\\\/#+<>;"= ])/g, "\\$1");
+	var userDN = user.replace(/([,\\/#+<>;"= ])/g, "\\$1");
 	var bindDN = Helper.config.ldap.primaryKey + "=" + userDN + "," + Helper.config.ldap.baseDN;
+
+	var ldapclient = ldap.createClient({
+		url: Helper.config.ldap.url
+	});
+
+	ldapclient.on("error", function(err) {
+		log.error("Unable to connect to LDAP server", err);
+		callback(!err);
+	});
 
 	ldapclient.bind(bindDN, password, function(err) {
 		if (!err && !client) {
@@ -272,6 +304,7 @@ function ldapAuth(client, user, password, callback) {
 				log.error("Unable to create new user", user);
 			}
 		}
+		ldapclient.unbind();
 		callback(!err);
 	});
 }
@@ -307,7 +340,7 @@ function auth(data) {
 					manager.loadUser(data.user);
 					client = manager.findClient(data.user);
 				}
-				if (Helper.config.webirc !== null && !client.config["ip"]) {
+				if (Helper.config.webirc !== null && !client.config.ip) {
 					reverseDnsLookup(socket, client);
 				} else {
 					init(socket, client, token);

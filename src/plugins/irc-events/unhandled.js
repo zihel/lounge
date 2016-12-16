@@ -1,3 +1,5 @@
+"use strict";
+
 var Msg = require("../../models/msg");
 
 module.exports = function(irc, network) {
@@ -13,6 +15,6 @@ module.exports = function(irc, network) {
 			type: Msg.Type.UNHANDLED,
 			command: command.command,
 			params: command.params
-		}));
+		}), true);
 	});
 };

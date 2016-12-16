@@ -1,4 +1,5 @@
-var _ = require("lodash");
+"use strict";
+
 var identd = require("../../identd");
 var Msg = require("../../models/msg");
 var Chan = require("../../models/chan");
@@ -10,19 +11,19 @@ module.exports = function(irc, network) {
 
 	network.channels[0].pushMessage(client, new Msg({
 		text: "Network created, connecting to " + network.host + ":" + network.port + "..."
-	}));
+	}), true);
 
 	irc.on("registered", function() {
 		if (network.irc.network.cap.enabled.length > 0) {
 			network.channels[0].pushMessage(client, new Msg({
 				text: "Enabled capabilities: " + network.irc.network.cap.enabled.join(", ")
-			}));
+			}), true);
 		}
 
 		var delay = 1000;
 		var commands = network.commands;
 		if (Array.isArray(commands)) {
-			commands.forEach(function(cmd) {
+			commands.forEach(cmd => {
 				setTimeout(function() {
 					client.input({
 						target: network.channels[0].id,
@@ -33,7 +34,7 @@ module.exports = function(irc, network) {
 			});
 		}
 
-		network.channels.forEach(function(chan) {
+		network.channels.forEach(chan => {
 			if (chan.type !== Chan.Type.CHANNEL) {
 				return;
 			}
@@ -46,15 +47,20 @@ module.exports = function(irc, network) {
 	});
 
 	irc.on("socket connected", function() {
+		network.prefixLookup = {};
+		irc.network.options.PREFIX.forEach(function(mode) {
+			network.prefixLookup[mode.mode] = mode.symbol;
+		});
+
 		network.channels[0].pushMessage(client, new Msg({
 			text: "Connected to the network."
-		}));
+		}), true);
 	});
 
 	irc.on("close", function() {
 		network.channels[0].pushMessage(client, new Msg({
 			text: "Disconnected from the network, and will not reconnect. Use /connect to reconnect again."
-		}));
+		}), true);
 	});
 
 	if (identd.isEnabled()) {
@@ -64,14 +70,14 @@ module.exports = function(irc, network) {
 	}
 
 	if (identHandler) {
+		let identSocketId;
+
 		irc.on("socket connected", function() {
-			identHandler.addSocket(irc.connection.socket, client.name || network.username);
-			identHandler.refresh();
+			identSocketId = identHandler.addSocket(irc.connection.socket, client.name || network.username);
 		});
 
 		irc.on("socket close", function() {
-			identHandler.removeSocket(irc.connection.socket);
-			identHandler.refresh();
+			identHandler.removeSocket(identSocketId);
 		});
 	}
 
@@ -85,19 +91,19 @@ module.exports = function(irc, network) {
 		network.channels[0].pushMessage(client, new Msg({
 			type: Msg.Type.ERROR,
 			text: "Socket error: " + err
-		}));
+		}), true);
 	});
 
 	irc.on("reconnecting", function(data) {
 		network.channels[0].pushMessage(client, new Msg({
 			text: "Disconnected from the network. Reconnecting in " + Math.round(data.wait / 1000) + " seconds… (Attempt " + data.attempt + " of " + data.max_retries + ")"
-		}));
+		}), true);
 	});
 
 	irc.on("ping timeout", function() {
 		network.channels[0].pushMessage(client, new Msg({
 			text: "Ping timeout, disconnecting…"
-		}));
+		}), true);
 	});
 
 	irc.on("server options", function(data) {
@@ -107,7 +113,7 @@ module.exports = function(irc, network) {
 
 		network.prefixLookup = {};
 
-		_.each(data.options.PREFIX, function(mode) {
+		data.options.PREFIX.forEach(mode => {
 			network.prefixLookup[mode.mode] = mode.symbol;
 		});
 

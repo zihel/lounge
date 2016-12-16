@@ -27,6 +27,10 @@ body {
 	top: 4px;
 }
 
+#chat .unhandled .from {
+	color: #ddd;
+}
+
 #windows .window:before {
 	background: #f4f4f4;
 	background-image: linear-gradient(#f4f4f4, #ececec);
@@ -40,6 +44,14 @@ body {
 
 #windows .window {
 	border-radius: 2px;
+}
+
+.btn-reconnect {
+	background: #e74c3c;
+	color: #fff;
+	border: 0;
+	border-radius: 0;
+	margin: 0;
 }
 
 @media (max-width: 768px) {

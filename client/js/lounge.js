@@ -1,8 +1,12 @@
-$(function() {
-	$("#loading-page-message").text("Connecting…");
+"use strict";
 
+$(function() {
 	var path = window.location.pathname + "socket.io/";
-	var socket = io({path: path});
+	var socket = io({
+		path: path,
+		autoConnect: false,
+		reconnection: false
+	});
 	var commands = [
 		"/close",
 		"/connect",
@@ -33,6 +37,8 @@ $(function() {
 
 	var sidebar = $("#sidebar, #footer");
 	var chat = $("#chat");
+
+	var ignoreSortSync = false;
 
 	var pop;
 	try {
@@ -70,14 +76,41 @@ $(function() {
 		}
 	);
 
-	socket.on("error", function(e) {
-		console.log(e);
+	[
+		"connect_error",
+		"connect_failed",
+		"disconnect",
+		"error",
+	].forEach(function(e) {
+		socket.on(e, function(data) {
+			$("#loading-page-message").text("Connection failed: " + data);
+			$("#connection-error").addClass("shown").one("click", function() {
+				window.onbeforeunload = null;
+				window.location.reload();
+			});
+
+			// Disables sending a message by pressing Enter. `off` is necessary to
+			// cancel `inputhistory`, which overrides hitting Enter. `on` is then
+			// necessary to avoid creating new lines when hitting Enter without Shift.
+			// This is fairly hacky but this solution is not permanent.
+			$("#input").off("keydown").on("keydown", function(event) {
+				if (event.which === 13 && !event.shiftKey) {
+					event.preventDefault();
+				}
+			});
+			// Hides the "Send Message" button
+			$("#submit").remove();
+
+			console.error(data);
+		});
 	});
 
-	$.each(["connect_error", "disconnect"], function(i, e) {
-		socket.on(e, function() {
-			refresh();
-		});
+	socket.on("connecting", function() {
+		$("#loading-page-message").text("Connecting…");
+	});
+
+	socket.on("connect", function() {
+		$("#loading-page-message").text("Finalizing connection…");
 	});
 
 	socket.on("authorized", function() {
@@ -86,6 +119,7 @@ $(function() {
 
 	socket.on("auth", function(data) {
 		var login = $("#sign-in");
+		var token;
 
 		login.find(".btn").prop("disabled", false);
 
@@ -97,7 +131,7 @@ $(function() {
 				error.hide();
 			});
 		} else {
-			var token = window.localStorage.getItem("token");
+			token = window.localStorage.getItem("token");
 			if (token) {
 				$("#loading-page-message").text("Authorizing…");
 				socket.emit("auth", {token: token});
@@ -179,6 +213,13 @@ $(function() {
 				$("#footer").find(".connect").trigger("click");
 			}
 		}
+	});
+
+	socket.on("open", function(id) {
+		// Another client opened the channel, clear the unread counter
+		sidebar.find(".chan[data-id='" + id + "'] .badge")
+			.removeClass("highlight")
+			.empty();
 	});
 
 	socket.on("join", function(data) {
@@ -297,6 +338,27 @@ $(function() {
 		} else {
 			channel.append(render("unread_marker"));
 		}
+
+		if (data.type !== "lobby") {
+			var lastDate;
+			$(chat.find("#chan-" + data.id + " .messages .msg[data-time]")).each(function() {
+				var msg = $(this);
+				var msgDate = new Date(msg.attr("data-time"));
+
+				// Top-most message in a channel
+				if (!lastDate) {
+					lastDate = msgDate;
+					msg.before(render("date-marker", {msgDate: msgDate}));
+				}
+
+				if (lastDate.toDateString() !== msgDate.toDateString()) {
+					msg.before(render("date-marker", {msgDate: msgDate}));
+				}
+
+				lastDate = msgDate;
+			});
+		}
+
 	}
 
 	function renderChannelUsers(data) {
@@ -352,11 +414,26 @@ $(function() {
 		var target = "#chan-" + data.chan;
 		var container = chat.find(target + " .messages");
 
+        // Check if date changed
+		var prevMsg = $(container.find(".msg")).last();
+		var prevMsgTime = new Date(prevMsg.attr("data-time"));
+		var msgTime = new Date(msg.attr("data-time"));
+
+		// It's the first message in a channel/query
+		if (prevMsg.length === 0) {
+			container.append(render("date-marker", {msgDate: msgTime}));
+		}
+
+		if (prevMsgTime.toDateString() !== msgTime.toDateString()) {
+			prevMsg.append(render("date-marker", {msgDate: msgTime}));
+		}
+
+        // Add message to the container
 		container
 			.append(msg)
 			.trigger("msg", [
 				target,
-				data.msg
+				data
 			]);
 
 		if (data.msg.self) {
@@ -372,6 +449,16 @@ $(function() {
 			.find("#chan-" + data.chan)
 			.find(".messages");
 
+		// Remove the date-change marker we put at the top, because it may
+		// not actually be a date change now
+		var children = $(chan).children();
+		if (children.eq(0).hasClass("date-marker")) { // Check top most child
+			children.eq(0).remove();
+		} else if (children.eq(0).hasClass("unread-marker") && children.eq(1).hasClass("date-marker")) {
+			// Otherwise the date-marker would get 'stuck' because of the new-message marker
+			children.eq(1).remove();
+		}
+
 		// get the scrollable wrapper around messages
 		var scrollable = chan.closest(".chat");
 		var heightOld = chan.height();
@@ -384,6 +471,28 @@ $(function() {
 		if (data.messages.length !== 100) {
 			scrollable.find(".show-more").removeClass("show");
 		}
+
+		// Date change detect
+		// Have to use data instaid of the documentFragment because it's being weird
+		var lastDate;
+		$(data.messages).each(function() {
+			var msgData = this;
+			var msgDate = new Date(msgData.time);
+			var msg = $(chat.find("#chan-" + data.chan + " .messages #msg-" + msgData.id));
+
+			// Top-most message in a channel
+			if (!lastDate) {
+				lastDate = msgDate;
+				msg.before(render("date-marker", {msgDate: msgDate}));
+			}
+
+			if (lastDate.toDateString() !== msgDate.toDateString()) {
+				msg.before(render("date-marker", {msgDate: msgDate}));
+			}
+
+			lastDate = msgDate;
+		});
+
 	});
 
 	socket.on("network", function(data) {
@@ -477,7 +586,7 @@ $(function() {
 	socket.on("names", renderChannelUsers);
 
 	var userStyles = $("#user-specified-css");
-	var settings = $("#settings");
+	var highlights = [];
 	var options = $.extend({
 		coloredNicks: true,
 		desktopNotifications: false,
@@ -495,73 +604,107 @@ $(function() {
 		userStyles: userStyles.text(),
 	}, JSON.parse(window.localStorage.getItem("settings")));
 
-	for (var i in options) {
-		if (i === "userStyles") {
-			if (!/[\?&]nocss/.test(window.location.search)) {
-				$(document.head).find("#user-specified-css").html(options[i]);
+	var windows = $("#windows");
+
+	(function SettingsScope() {
+		var settings = $("#settings");
+
+		for (var i in options) {
+			if (i === "userStyles") {
+				if (!/[?&]nocss/.test(window.location.search)) {
+					$(document.head).find("#user-specified-css").html(options[i]);
+				}
+				settings.find("#user-specified-css-input").val(options[i]);
+			} else if (i === "highlights") {
+				settings.find("input[name=" + i + "]").val(options[i]);
+			} else if (i === "theme") {
+				$("#theme").attr("href", "themes/" + options[i] + ".css");
+				settings.find("select[name=" + i + "]").val(options[i]);
+			} else if (options[i]) {
+				settings.find("input[name=" + i + "]").prop("checked", true);
 			}
-			settings.find("#user-specified-css-input").val(options[i]);
-		} else if (i === "highlights") {
-			settings.find("input[name=" + i + "]").val(options[i]);
-		} else if (i === "theme") {
-			$("#theme").attr("href", "themes/" + options[i] + ".css");
-			settings.find("select[name=" + i + "]").val(options[i]);
-		} else if (options[i]) {
-			settings.find("input[name=" + i + "]").prop("checked", true);
-		}
-	}
-
-	var highlights = [];
-
-	settings.on("change", "input, select, textarea", function() {
-		var self = $(this);
-		var name = self.attr("name");
-
-		if (self.attr("type") === "checkbox") {
-			options[name] = self.prop("checked");
-		} else {
-			options[name] = self.val();
 		}
 
-		setLocalStorageItem("settings", JSON.stringify(options));
+		settings.on("change", "input, select, textarea", function() {
+			var self = $(this);
+			var name = self.attr("name");
 
-		if ([
-			"join",
-			"mode",
-			"motd",
-			"nick",
-			"part",
-			"quit",
-			"notifyAllMessages",
-		].indexOf(name) !== -1) {
-			chat.toggleClass("hide-" + name, !self.prop("checked"));
-		} else if (name === "coloredNicks") {
-			chat.toggleClass("colored-nicks", self.prop("checked"));
-		} else if (name === "theme") {
-			$("#theme").attr("href", "themes/" + options[name] + ".css");
-		} else if (name === "userStyles") {
-			$(document.head).find("#user-specified-css").html(options[name]);
-		} else if (name === "highlights") {
-			var highlightString = options[name];
-			highlights = highlightString.split(",").map(function(h) {
-				return h.trim();
-			}).filter(function(h) {
-				// Ensure we don't have empty string in the list of highlights
-				// otherwise, users get notifications for everything
-				return h !== "";
-			});
-		}
-	}).find("input")
-		.trigger("change");
+			if (self.attr("type") === "checkbox") {
+				options[name] = self.prop("checked");
+			} else {
+				options[name] = self.val();
+			}
 
-	$("#desktopNotifications").on("change", function() {
-		var self = $(this);
-		if (self.prop("checked")) {
-			if (Notification.permission !== "granted") {
+			setLocalStorageItem("settings", JSON.stringify(options));
+
+			if ([
+				"join",
+				"mode",
+				"motd",
+				"nick",
+				"part",
+				"quit",
+				"notifyAllMessages",
+			].indexOf(name) !== -1) {
+				chat.toggleClass("hide-" + name, !self.prop("checked"));
+			} else if (name === "coloredNicks") {
+				chat.toggleClass("colored-nicks", self.prop("checked"));
+			} else if (name === "theme") {
+				$("#theme").attr("href", "themes/" + options[name] + ".css");
+			} else if (name === "userStyles") {
+				userStyles.html(options[name]);
+			} else if (name === "highlights") {
+				var highlightString = options[name];
+				highlights = highlightString.split(",").map(function(h) {
+					return h.trim();
+				}).filter(function(h) {
+					// Ensure we don't have empty string in the list of highlights
+					// otherwise, users get notifications for everything
+					return h !== "";
+				});
+			}
+		}).find("input")
+			.trigger("change");
+
+		$("#desktopNotifications").on("change", function() {
+			if ($(this).prop("checked") && Notification.permission !== "granted") {
 				Notification.requestPermission(updateDesktopNotificationStatus);
 			}
+		});
+
+		// Updates the checkbox and warning in settings when the Settings page is
+		// opened or when the checkbox state is changed.
+		// When notifications are not supported, this is never called (because
+		// checkbox state can not be changed).
+		var updateDesktopNotificationStatus = function() {
+			if (Notification.permission === "denied") {
+				desktopNotificationsCheckbox.attr("disabled", true);
+				desktopNotificationsCheckbox.attr("checked", false);
+				warningBlocked.show();
+			} else {
+				if (Notification.permission === "default" && desktopNotificationsCheckbox.prop("checked")) {
+					desktopNotificationsCheckbox.attr("checked", false);
+				}
+				desktopNotificationsCheckbox.attr("disabled", false);
+				warningBlocked.hide();
+			}
+		};
+
+		// If browser does not support notifications, override existing settings and
+		// display proper message in settings.
+		var desktopNotificationsCheckbox = $("#desktopNotifications");
+		var warningUnsupported = $("#warnUnsupportedDesktopNotifications");
+		var warningBlocked = $("#warnBlockedDesktopNotifications");
+		warningBlocked.hide();
+		if (("Notification" in window)) {
+			warningUnsupported.hide();
+			windows.on("show", "#settings", updateDesktopNotificationStatus);
+		} else {
+			options.desktopNotifications = false;
+			desktopNotificationsCheckbox.attr("disabled", true);
+			desktopNotificationsCheckbox.attr("checked", false);
 		}
-	});
+	}());
 
 	var viewport = $("#viewport");
 	var sidebarSlide = window.slideoutMenu(viewport[0], sidebar[0]);
@@ -677,10 +820,15 @@ $(function() {
 		})
 		.tab(complete, {hint: false});
 
-	var form = $("#form");
+	// Cycle through nicks for the current word, just like hitting "Tab"
+	$("#cycle-nicks").on("click", function() {
+		input.triggerHandler($.Event("keydown.tabcomplete", {which: 9}));
+		focus();
+	});
 
-	form.on("submit", function(e) {
+	$("#form").on("submit", function(e) {
 		e.preventDefault();
+		focus();
 		var text = input.val();
 
 		if (text.length === 0) {
@@ -712,6 +860,65 @@ $(function() {
 			})
 			.first();
 	}
+
+	$("button#set-nick").on("click", function() {
+		toggleNickEditor(true);
+
+		// Selects existing nick in the editable text field
+		var element = document.querySelector("#nick-value");
+		element.focus();
+		var range = document.createRange();
+		range.selectNodeContents(element);
+		var selection = window.getSelection();
+		selection.removeAllRanges();
+		selection.addRange(range);
+	});
+
+	$("button#cancel-nick").on("click", cancelNick);
+	$("button#submit-nick").on("click", submitNick);
+
+	function toggleNickEditor(toggle) {
+		$("#nick").toggleClass("editable", toggle);
+		$("#nick-value").attr("contenteditable", toggle);
+	}
+
+	function submitNick() {
+		var newNick = $("#nick-value").text().trim();
+
+		if (newNick.length === 0) {
+			cancelNick();
+			return;
+		}
+
+		toggleNickEditor(false);
+
+		socket.emit("input", {
+			target: chat.data("id"),
+			text: "/nick " + newNick
+		});
+	}
+
+	function cancelNick() {
+		setNick(sidebar.find(".chan.active").closest(".network").data("nick"));
+	}
+
+	$("#nick-value").keypress(function(e) {
+		switch (e.keyCode ? e.keyCode : e.which) {
+		case 13: // Enter
+			// Ensures a new line is not added when pressing Enter
+			e.preventDefault();
+			break;
+		}
+	}).keyup(function(e) {
+		switch (e.keyCode ? e.keyCode : e.which) {
+		case 13: // Enter
+			submitNick();
+			break;
+		case 27: // Escape
+			cancelNick();
+			break;
+		}
+	});
 
 	chat.on("click", ".inline-channel", function() {
 		var name = $(this).data("chan");
@@ -746,7 +953,7 @@ $(function() {
 			var text = "";
 			if (window.getSelection) {
 				text = window.getSelection().toString();
-			} else if (document.selection && document.selection.type !==  "Control") {
+			} else if (document.selection && document.selection.type !== "Control") {
 				text = document.selection.createRange().text;
 			}
 			if (!text) {
@@ -784,7 +991,6 @@ $(function() {
 		self.addClass("active")
 			.find(".badge")
 			.removeClass("highlight")
-			.data("count", 0)
 			.empty();
 
 		if (sidebar.find(".highlight").length === 0) {
@@ -893,6 +1099,9 @@ $(function() {
 	});
 
 	chat.on("msg", ".messages", function(e, target, msg) {
+		var unread = msg.unread;
+		msg = msg.msg;
+
 		if (msg.self) {
 			return;
 		}
@@ -901,7 +1110,11 @@ $(function() {
 		if (msg.highlight || (options.notifyAllMessages && msg.type === "message")) {
 			if (!document.hasFocus() || !$(target).hasClass("active")) {
 				if (options.notification) {
-					pop.play();
+					try {
+						pop.play();
+					} catch (exception) {
+						// On mobile, sounds can not be played without user interaction.
+					}
 				}
 				toggleNotificationMarkers(true);
 
@@ -921,19 +1134,21 @@ $(function() {
 						body = msg.text.replace(/\x02|\x1D|\x1F|\x16|\x0F|\x03(?:[0-9]{1,2}(?:,[0-9]{1,2})?)?/g, "").trim();
 					}
 
-					var notify = new Notification(title, {
-						body: body,
-						icon: "img/logo-64.png",
-						tag: target
-					});
-					notify.onclick = function() {
-						window.focus();
-						button.click();
-						this.close();
-					};
-					window.setTimeout(function() {
-						notify.close();
-					}, 5 * 1000);
+					try {
+						var notify = new Notification(title, {
+							body: body,
+							icon: "img/logo-64.png",
+							tag: target
+						});
+						notify.addEventListener("click", function() {
+							window.focus();
+							button.click();
+							this.close();
+						});
+					} catch (exception) {
+						// `new Notification(...)` is not supported and should be silenced.
+					}
+
 				}
 			}
 		}
@@ -942,23 +1157,14 @@ $(function() {
 			return;
 		}
 
-		var whitelistedActions = [
-			"message",
-			"notice",
-			"action",
-		];
-		if (whitelistedActions.indexOf(msg.type) === -1) {
+		if (!unread) {
 			return;
 		}
 
-		var badge = button.find(".badge");
-		if (badge.length !== 0) {
-			var i = (badge.data("count") || 0) + 1;
-			badge.data("count", i);
-			badge.html(Handlebars.helpers.roundBadgeNumber(i));
-			if (msg.highlight) {
-				badge.addClass("highlight");
-			}
+		var badge = button.find(".badge").html(Handlebars.helpers.roundBadgeNumber(unread));
+
+		if (msg.highlight) {
+			badge.addClass("highlight");
 		}
 	});
 
@@ -973,30 +1179,27 @@ $(function() {
 
 	chat.on("click", ".toggle-button", function() {
 		var self = $(this);
-		var chat = self.closest(".chat");
-		var bottom = chat.isScrollBottom();
+		var localChat = self.closest(".chat");
+		var bottom = localChat.isScrollBottom();
 		var content = self.parent().next(".toggle-content");
 		if (bottom && !content.hasClass("show")) {
 			var img = content.find("img");
 			if (img.length !== 0 && !img.width()) {
 				img.on("load", function() {
-					chat.scrollBottom();
+					localChat.scrollBottom();
 				});
 			}
 		}
 		content.toggleClass("show");
 		if (bottom) {
-			chat.scrollBottom();
+			localChat.scrollBottom();
 		}
 	});
 
-	var windows = $("#windows");
 	var forms = $("#sign-in, #connect, #change-password");
 
 	windows.on("show", "#sign-in", function() {
-		var self = $(this);
-		var inputs = self.find("input");
-		inputs.each(function() {
+		$(this).find("input").each(function() {
 			var self = $(this);
 			if (self.val() === "") {
 				self.focus();
@@ -1004,8 +1207,31 @@ $(function() {
 			}
 		});
 	});
+	if ($("body").hasClass("public")) {
+		$("#connect").one("show", function() {
+			var params = window.URI(document.location.search);
+			params = params.search(true);
+			// Possible parameters:  name, host, port, password, tls, nick, username, realname, join
+			// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for...in#Iterating_over_own_properties_only
+			for (var key in params) {
+				if (params.hasOwnProperty(key)) {
+					var value = params[key];
+					// \W searches for non-word characters
+					key = key.replace(/\W/g, "");
 
-	windows.on("show", "#settings", updateDesktopNotificationStatus);
+					var element = $("#connect input[name='" + key + "']");
+					// if the element exists, it isn't disabled, and it isn't hidden
+					if (element.length > 0 && !element.is(":disabled") && !element.is(":hidden")) {
+						if (element.is(":checkbox")) {
+							element.prop("checked", (value === "1" || value === "true") ? true : false);
+						} else {
+							element.val(value);
+						}
+					}
+				}
+			}
+		});
+	}
 
 	forms.on("submit", "form", function(e) {
 		e.preventDefault();
@@ -1083,6 +1309,26 @@ $(function() {
 			var chan = $(this);
 			if (chan.find(".messages .msg:not(.unread-marker)").slice(0, -100).remove().length) {
 				chan.find(".show-more").addClass("show");
+
+				// Remove date-seperators that would otherwise be "stuck" at the top
+				// of the channel
+				var prev;
+				$(chan.find(".messages").children()).each(function() {
+					if (!prev) {
+						// Should always be a date-seperator, because it's always added
+						prev = $(this);
+					} else {
+						var current = $(this);
+
+						if (current.attr("class") === "date-marker") {
+							prev.remove();
+						} else {
+							return false;
+						}
+
+						prev = current;
+					}
+				});
 			}
 		});
 	}, 1000 * 10);
@@ -1090,6 +1336,7 @@ $(function() {
 	function clear() {
 		chat.find(".active .messages .msg:not(.unread-marker)").remove();
 		chat.find(".active .show-more").addClass("show");
+		chat.find(".active .date-marker").remove();
 	}
 
 	function complete(word) {
@@ -1125,38 +1372,18 @@ $(function() {
 		}
 	}
 
-	function refresh() {
-		window.onbeforeunload = null;
-		location.reload();
-	}
-
-	function updateDesktopNotificationStatus() {
-		var checkbox = $("#desktopNotifications");
-		var warning = $("#warnDisabledDesktopNotifications");
-
-		if (Notification.permission === "denied") {
-			checkbox.attr("disabled", true);
-			checkbox.attr("checked", false);
-			warning.show();
-		} else {
-			if (Notification.permission === "default" && checkbox.prop("checked")) {
-				checkbox.attr("checked", false);
-			}
-			checkbox.attr("disabled", false);
-			warning.hide();
-		}
-	}
-
 	function sortable() {
-		sidebar.sortable({
+		sidebar.find(".networks").sortable({
 			axis: "y",
 			containment: "parent",
-			cursor: "grabbing",
+			cursor: "move",
 			distance: 12,
 			items: ".network",
 			handle: ".lobby",
 			placeholder: "network-placeholder",
 			forcePlaceholderSize: true,
+			tolerance: "pointer", // Use the pointer to figure out where the network is in the list
+
 			update: function() {
 				var order = [];
 				sidebar.find(".network").each(function() {
@@ -1169,16 +1396,20 @@ $(function() {
 						order: order
 					}
 				);
+
+				ignoreSortSync = true;
 			}
 		});
 		sidebar.find(".network").sortable({
 			axis: "y",
 			containment: "parent",
-			cursor: "grabbing",
+			cursor: "move",
 			distance: 12,
 			items: ".chan:not(.lobby)",
 			placeholder: "chan-placeholder",
 			forcePlaceholderSize: true,
+			tolerance: "pointer", // Use the pointer to figure out where the channel is in the list
+
 			update: function(e, ui) {
 				var order = [];
 				var network = ui.item.parent();
@@ -1193,12 +1424,63 @@ $(function() {
 						order: order
 					}
 				);
+
+				ignoreSortSync = true;
 			}
 		});
 	}
 
+	socket.on("sync_sort", function(data) {
+		// Syncs the order of channels or networks when they are reordered
+		if (ignoreSortSync) {
+			ignoreSortSync = false;
+			return; // Ignore syncing because we 'caused' it
+		}
+
+		var type = data.type;
+		var order = data.order;
+
+		if (type === "networks") {
+			var container = $(".networks");
+
+			$.each(order, function(index, value) {
+				var position = $(container.children()[index]);
+
+				if (position.data("id") === value) { // Network in correct place
+					return true; // No point in continuing
+				}
+
+				var network = container.find("#network-" + value);
+
+				$(network).insertBefore(position);
+			});
+		} else if (type === "channels") {
+			var network = $("#network-" + data.target);
+
+			$.each(order, function(index, value) {
+				if (index === 0) { // Shouldn't attempt to move lobby
+					return true; // same as `continue` -> skip to next item
+				}
+
+				var position = $(network.children()[index]); // Target channel at position
+
+				if (position.data("id") === value) { // Channel in correct place
+					return true; // No point in continuing
+				}
+
+				var channel = network.find(".chan[data-id=" + value + "]"); // Channel at position
+
+				$(channel).insertBefore(position);
+			});
+		}
+	});
+
 	function setNick(nick) {
-		$("#nick").text(nick);
+		// Closes the nick editor when canceling, changing channel, or when a nick
+		// is set in a different tab / browser / device.
+		toggleNickEditor(false);
+
+		$("#nick-value").text(nick);
 	}
 
 	function move(array, old_index, new_index) {
@@ -1233,4 +1515,7 @@ $(function() {
 			}
 		}
 	);
+
+	// Only start opening socket.io connection after all events have been registered
+	socket.open();
 });

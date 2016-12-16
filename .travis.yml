@@ -1,17 +1,15 @@
 language: node_js
 node_js:
-- 6
-- 4
+- 7 # Current stable
+- 6 # Active LTS until 2018-04-18
+- 4 # Active LTS until 2017-04-01
 
 matrix:
   fast_finish: true
-  include:
-  - os: osx
-    node_js: 4
 
 cache:
   directories:
-    - node_modules
+    - ~/.npm
 
 notifications:
   email:

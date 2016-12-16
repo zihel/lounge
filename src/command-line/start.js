@@ -1,14 +1,16 @@
+"use strict";
+
 var ClientManager = new require("../clientManager");
 var program = require("commander");
 var server = require("../server");
 var Helper = require("../helper");
 
 program
-	.option("-H, --host <ip>"   , "host")
-	.option("-P, --port <port>" , "port")
-	.option("-B, --bind <ip>"   , "bind")
-	.option("    --public"      , "mode")
-	.option("    --private"     , "mode")
+	.option("-H, --host <ip>", "host")
+	.option("-P, --port <port>", "port")
+	.option("-B, --bind <ip>", "bind")
+	.option("    --public", "mode")
+	.option("    --private", "mode")
 	.command("start")
 	.description("Start the server")
 	.action(function() {

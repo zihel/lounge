@@ -1,5 +1,6 @@
+"use strict";
+
 var ClientManager = new require("../clientManager");
-var bcrypt = require("bcrypt-nodejs");
 var program = require("commander");
 var Helper = require("../helper");
 
@@ -17,6 +18,10 @@ program
 			prompt: "[thelounge] Enter password: ",
 			silent: true
 		}, function(err, password) {
+			if (!password) {
+				log.error("Password cannot be empty.");
+				return;
+			}
 			if (!err) {
 				add(manager, name, password);
 			}
@@ -24,8 +29,7 @@ program
 	});
 
 function add(manager, name, password) {
-	var salt = bcrypt.genSaltSync(8);
-	var hash = bcrypt.hashSync(password, salt);
+	var hash = Helper.password.hash(password);
 	manager.addUser(
 		name,
 		hash

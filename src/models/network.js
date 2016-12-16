@@ -1,3 +1,5 @@
+"use strict";
+
 var _ = require("lodash");
 var Chan = require("./chan");
 
@@ -6,7 +8,7 @@ module.exports = Network;
 var id = 0;
 
 function Network(attr) {
-	_.merge(this, _.extend({
+	_.defaults(this, attr, {
 		name: "",
 		host: "",
 		port: 6667,
@@ -24,7 +26,8 @@ function Network(attr) {
 			PREFIX: [],
 		},
 		chanCache: [],
-	}, attr));
+	});
+
 	this.name = attr.name || prettify(attr.host);
 	this.channels.unshift(
 		new Chan({
@@ -41,7 +44,7 @@ Network.prototype.setNick = function(nick) {
 		"(?:^|[^a-z0-9]|\x03[0-9]{1,2})" +
 
 		// Escape nickname, as it may contain regex stuff
-		nick.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&") +
+		_.escapeRegExp(nick) +
 
 		// Do not match characters and numbers
 		"(?:[^a-z0-9]|$)",
@@ -53,9 +56,10 @@ Network.prototype.setNick = function(nick) {
 
 Network.prototype.toJSON = function() {
 	return _.omit(this, [
+		"chanCache",
+		"highlightRegex",
 		"irc",
 		"password",
-		"highlightRegex"
 	]);
 };
 

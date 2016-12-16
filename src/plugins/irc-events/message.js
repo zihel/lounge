@@ -1,5 +1,8 @@
-var Chan = require("../../models/chan");
-var Msg = require("../../models/msg");
+"use strict";
+
+const Chan = require("../../models/chan");
+const Msg = require("../../models/msg");
+const LinkPrefetch = require("./link");
 
 module.exports = function(irc, network) {
 	var client = this;
@@ -25,9 +28,16 @@ module.exports = function(irc, network) {
 		handleMessage(data);
 	});
 
+	irc.on("wallops", function(data) {
+		data.from_server = true;
+		data.type = Msg.Type.NOTICE;
+		handleMessage(data);
+	});
+
 	function handleMessage(data) {
-		var highlight = false;
-		var self = data.nick === irc.user.nick;
+		let chan;
+		let highlight = false;
+		const self = data.nick === irc.user.nick;
 
 		// Server messages go to server window, no questions asked
 		if (data.from_server) {
@@ -40,7 +50,7 @@ module.exports = function(irc, network) {
 				target = data.nick;
 			}
 
-			var chan = network.getChannel(target);
+			chan = network.getChannel(target);
 			if (typeof chan === "undefined") {
 				// Send notices that are not targeted at us into the server window
 				if (data.type === Msg.Type.NOTICE) {
@@ -70,10 +80,6 @@ module.exports = function(irc, network) {
 			highlight = network.highlightRegex.test(data.message);
 		}
 
-		if (!self && chan.id !== client.activeChannel) {
-			chan.unread++;
-		}
-
 		var msg = new Msg({
 			type: data.type,
 			time: data.time,
@@ -83,6 +89,8 @@ module.exports = function(irc, network) {
 			self: self,
 			highlight: highlight
 		});
-		chan.pushMessage(client, msg);
+		chan.pushMessage(client, msg, !self);
+
+		LinkPrefetch(client, chan, msg);
 	}
 };

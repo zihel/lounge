@@ -1,4 +1,5 @@
-var bcrypt = require("bcrypt-nodejs");
+"use strict";
+
 var ClientManager = new require("../clientManager");
 var fs = require("fs");
 var program = require("commander");
@@ -22,7 +23,7 @@ program
 			if (err) {
 				return;
 			}
-			user.password = bcrypt.hashSync(password, bcrypt.genSaltSync(8));
+			user.password = Helper.password.hash(password);
 			user.token = null; // Will be regenerated when the user is loaded
 			fs.writeFileSync(
 				file,

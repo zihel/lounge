@@ -10,7 +10,7 @@ GitHub: https://github.com/aynik
 
 @font-face {
 	font-family: Inconsolata-g;
-	src: url("../css/fonts/inconsolatag.woff") format("woff"), url("../css/fonts/inconsolatag.ttf") format("ttf");
+	src: url("../css/fonts/inconsolatag.woff") format("woff");
 }
 
 body {
@@ -58,6 +58,14 @@ a:hover,
 	background: #00ff0e;
 }
 
+.btn-reconnect {
+	background: #f00;
+	color: #fff;
+	border: 0;
+	border-radius: 0;
+	margin: 0;
+}
+
 #settings .opt {
 	line-height: 20px;
 	font-size: 12px;
@@ -83,6 +91,10 @@ a:hover,
 #chat .count:before,
 #sidebar .empty {
 	color: #666;
+}
+
+#chat .unhandled .from {
+	color: #ddd;
 }
 
 #sidebar .active {

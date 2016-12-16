@@ -1,3 +1,5 @@
+"use strict";
+
 Handlebars.registerHelper(
 	"parse", function(text) {
 		text = Handlebars.Utils.escapeExpression(text);
@@ -31,7 +33,7 @@ function uri(text) {
  */
 function channels(text) {
 	return text.replace(
-		/(^|\s|\x07|,)((?:#|&amp;)[^\x07\s\,]{1,49})/g,
+		/(^|\s|\x07|,)((?:#|&amp;)[^\x07\s,]{1,49})/g,
 		'$1<span class="inline-channel" role="button" tabindex="0" data-chan="$2">$2</span>'
 	);
 }
@@ -112,10 +114,10 @@ function colors(line) {
 			return;
 		}
 
-		result = result.replace(style.keyregex, function(match, text) {
+		result = result.replace(style.keyregex, function(matchedTrash, matchedText) {
 			return styleTemplate({
-				"style": style.style,
-				"text": text
+				style: style.style,
+				text: matchedText
 			});
 		});
 	});

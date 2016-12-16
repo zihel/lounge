@@ -1,13 +1,14 @@
+"use strict";
+
 global.log = require("../log.js");
 
 var program = require("commander");
-var pkg = require("../../package.json");
 var fs = require("fs");
 var fsextra = require("fs-extra");
 var path = require("path");
 var Helper = require("../helper");
 
-program.version(pkg.version, "-v, --version");
+program.version(Helper.getVersion(), "-v, --version");
 program.option("");
 program.option("    --home <path>" , "home path");
 
