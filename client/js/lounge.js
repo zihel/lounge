@@ -1275,45 +1275,65 @@ $(function() {
 		forms.find(".username").val(nick);
 	});
 
-	Mousetrap.bind([
-		"command+up",
-		"command+down",
-		"ctrl+up",
-		"ctrl+down"
-	], function(e, keys) {
-		var channels = sidebar.find(".chan");
-		var index = channels.index(channels.filter(".active"));
-		var direction = keys.split("+").pop();
-		switch (direction) {
-		case "up":
-			// Loop
-			var upTarget = (channels.length + (index - 1 + channels.length)) % channels.length;
-			channels.eq(upTarget).click();
-			break;
+	(function HotkeysScope() {
+		Mousetrap.bind([
+			"command+up",
+			"command+down",
+			"ctrl+up",
+			"ctrl+down"
+		], function(e, keys) {
+			var channels = sidebar.find(".chan");
+			var index = channels.index(channels.filter(".active"));
+			var direction = keys.split("+").pop();
+			switch (direction) {
+			case "up":
+				// Loop
+				var upTarget = (channels.length + (index - 1 + channels.length)) % channels.length;
+				channels.eq(upTarget).click();
+				break;
 
-		case "down":
-			// Loop
-			var downTarget = (channels.length + (index + 1 + channels.length)) % channels.length;
-			channels.eq(downTarget).click();
-			break;
+			case "down":
+				// Loop
+				var downTarget = (channels.length + (index + 1 + channels.length)) % channels.length;
+				channels.eq(downTarget).click();
+				break;
+			}
+		});
+
+		Mousetrap.bind([
+			"command+shift+l",
+			"ctrl+shift+l"
+		], function(e) {
+			if (e.target === input[0]) {
+				clear();
+				e.preventDefault();
+			}
+		});
+
+		Mousetrap.bind([
+			"escape"
+		], function() {
+			contextMenuContainer.hide();
+		});
+
+		var colorsHotkeys = {
+			k: "\x03",
+			b: "\x02",
+			u: "\x1F",
+			i: "\x1D",
+			o: "\x0F",
+		};
+
+		for (var hotkey in colorsHotkeys) {
+			Mousetrap.bind([
+				"command+" + hotkey,
+				"ctrl+" + hotkey
+			], function(e) {
+				e.preventDefault();
+				input.val(input.val() + colorsHotkeys[e.key]);
+			});
 		}
-	});
-
-	Mousetrap.bind([
-		"command+k",
-		"ctrl+shift+l"
-	], function(e) {
-		if (e.target === input[0]) {
-			clear();
-			e.preventDefault();
-		}
-	});
-
-	Mousetrap.bind([
-		"escape"
-	], function() {
-		contextMenuContainer.hide();
-	});
+	}());
 
 	setInterval(function() {
 		chat.find(".chan:not(.active)").each(function() {
