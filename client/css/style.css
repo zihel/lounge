@@ -234,14 +234,16 @@ button {
 	cursor: pointer;
 }
 
+#chat .condensed div {
+	cursor: default;
+}
+
 #chat .condensed .expander:before {
-	content: "\f068"; /* http://fontawesome.io/icon/minus/ */
-	color: #ff4136;
+	content: "\f0d7"; /* http://fontawesome.io/icon/caret-down/ */
 }
 
 #chat .condensed.closed .expander:before {
-	content: "\f067"; /* http://fontawesome.io/icon/plus/ */
-	color: #2ecc40;
+	content: "\f0da"; /* http://fontawesome.io/icon/caret-right/ */
 }
 
 #chat .join .from:before {

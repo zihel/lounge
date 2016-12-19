@@ -313,8 +313,9 @@ $(function() {
 	}
 
 	function updateCondensedText(condensed, type) {
+		console.log(type);
 		var obj = {};
-		var types = ["part", "quit", "join", "mode", "kick", "nick"];
+		var types = ["part", "quit", "join"];
 
 		for (var i in types) {
 			var msgType = types[i];
@@ -342,14 +343,15 @@ $(function() {
 	}
 
 	function appendMessage(container, chan, chanType, messageType, msg) {
-		if (["join", "part", "quit", "mode", "kick", "nick"].indexOf(messageType) !== -1 && chanType !== "lobby") {
+		if (["join", "part", "quit"].indexOf(messageType) !== -1 && chanType !== "lobby") {
 			var lastChild = container.children("div.msg").last();
 			if (lastChild && $(lastChild).hasClass("condensed") && !$(msg).hasClass("message")) {
 				lastChild.append(msg);
 				updateCondensedText(lastChild, messageType);
-			} else if (lastChild && !$(lastChild).hasClass("message") && !$(msg).hasClass("message")) {
-				var condensed = buildChatMessage({msg: {type: "condensed"}, chan: chan});
+			} else if (lastChild && $(lastChild).is(".join, .part, .quit")) {
+				var condensed = buildChatMessage({msg: {type: "condensed", time: msg.attr("data-time")}, chan: chan});
 				condensed.append(lastChild);
+				updateCondensedText(condensed, lastChild.attr("data-type"));
 				condensed.append(msg);
 				container.append(condensed);
 				updateCondensedText(condensed, messageType);
@@ -1021,6 +1023,10 @@ $(function() {
 
 	chat.on("click", ".condensed", function() {
 		$(this).toggleClass("closed");
+	});
+
+	chat.on("click", ".condensed div", function(e) {
+		e.stopPropagation();
 	});
 
 	chat.on("click", ".user", function() {
