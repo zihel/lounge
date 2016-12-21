@@ -313,9 +313,8 @@ $(function() {
 	}
 
 	function updateCondensedText(condensed, type) {
-		console.log(type);
 		var obj = {};
-		var types = ["part", "quit", "join"];
+		var types = ["part", "quit", "join", "nick", "mode"];
 
 		for (var i in types) {
 			var msgType = types[i];
@@ -343,12 +342,12 @@ $(function() {
 	}
 
 	function appendMessage(container, chan, chanType, messageType, msg) {
-		if (["join", "part", "quit"].indexOf(messageType) !== -1 && chanType !== "lobby") {
+		if (["join", "part", "quit", "nick", "mode"].indexOf(messageType) !== -1 && chanType !== "lobby") {
 			var lastChild = container.children("div.msg").last();
 			if (lastChild && $(lastChild).hasClass("condensed") && !$(msg).hasClass("message")) {
 				lastChild.append(msg);
 				updateCondensedText(lastChild, messageType);
-			} else if (lastChild && $(lastChild).is(".join, .part, .quit")) {
+			} else if (lastChild && $(lastChild).is(".join, .part, .quit, .nick, .mode")) {
 				var condensed = buildChatMessage({msg: {type: "condensed", time: msg.attr("data-time")}, chan: chan});
 				condensed.append(lastChild);
 				updateCondensedText(condensed, lastChild.attr("data-type"));
@@ -408,6 +407,11 @@ $(function() {
 				}
 
 				if (lastDate.toDateString() !== msgDate.toDateString()) {
+					var parent = msg.parent();
+					if (msg.parent().hasClass("condensed")) {
+						var detached = msg.detach();
+						detached.insertAfter(parent);
+					}
 					msg.before(render("date-marker", {msgDate: msgDate}));
 				}
 
@@ -481,7 +485,12 @@ $(function() {
 		}
 
 		if (prevMsgTime.toDateString() !== msgTime.toDateString()) {
-			prevMsg.append(render("date-marker", {msgDate: msgTime}));
+			var parent = prevMsg.parent();
+			if (parent.hasClass("condensed")) {
+				parent.append(render("date-marker", {msgDate: msgTime}));
+			} else {
+				prevMsg.append(render("date-marker", {msgDate: msgTime}));
+			}
 		}
 
 
@@ -543,6 +552,11 @@ $(function() {
 			}
 
 			if (lastDate.toDateString() !== msgDate.toDateString()) {
+				var parent = msg.parent();
+				if (msg.parent().hasClass("condensed")) {
+					var detached = msg.detach();
+					detached.insertAfter(parent);
+				}
 				msg.before(render("date-marker", {msgDate: msgDate}));
 			}
 
