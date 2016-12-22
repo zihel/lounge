@@ -30,6 +30,7 @@ if (!fs.existsSync(Helper.CONFIG_PATH)) {
 	log.info(`Configuration file created at ${colors.green(Helper.CONFIG_PATH)}.`);
 }
 
+fsextra.ensureDirSync(Helper.THEMES_PATH);
 fsextra.ensureDirSync(Helper.USERS_PATH);
 
 require("./start");

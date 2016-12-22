@@ -60,6 +60,7 @@ function getGitCommit() {
 function setHome(homePath) {
 	this.HOME = expandHome(homePath || "~/.lounge");
 	this.CONFIG_PATH = path.join(this.HOME, "config.js");
+	this.THEMES_PATH = path.join(this.HOME, "themes");
 	this.USERS_PATH = path.join(this.HOME, "users");
 
 	// Reload config from new home location
