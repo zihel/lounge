@@ -37,6 +37,28 @@ $(function() {
 		"/voice",
 		"/whois"
 	];
+	var handledTypes = [
+		"invite",
+		"join",
+		"mode",
+		"kick",
+		"nick",
+		"part",
+		"quit",
+		"topic",
+		"topic_set_by",
+		"action",
+		"whois",
+		"ctcp",
+		"channel_list",
+	];
+	var condensedTypes = [
+		"join",
+		"mode",
+		"nick",
+		"part",
+		"quit",
+	];
 
 	var sidebar = $("#sidebar, #footer");
 	var chat = $("#chat");
@@ -269,21 +291,7 @@ $(function() {
 			data.msg.highlight = true;
 		}
 
-		if ([
-			"invite",
-			"join",
-			"mode",
-			"kick",
-			"nick",
-			"part",
-			"quit",
-			"topic",
-			"topic_set_by",
-			"action",
-			"whois",
-			"ctcp",
-			"channel_list",
-		].indexOf(type) !== -1) {
+		if (handledTypes.indexOf(type) !== -1) {
 			data.msg.template = "actions/" + type;
 			template = "msg_action";
 		} else if (type === "unhandled") {
@@ -312,23 +320,24 @@ $(function() {
 		return msg;
 	}
 
-	function updateCondensedText(condensed, type) {
+	function updateCondensedText(condensed, addedTypes) {
 		var obj = {};
-		var types = ["part", "quit", "join", "nick", "mode"];
 
-		for (var i in types) {
-			var msgType = types[i];
+		for (var i in condensedTypes) {
+			var msgType = condensedTypes[i];
 			obj[msgType] = condensed.data(msgType) || 0;
-			if (type === msgType) {
-				obj[msgType]++;
-				condensed.data(msgType, obj[msgType]);
-			}
+		}
+
+		for (var k in addedTypes) {
+			var added = addedTypes[k];
+			obj[added]++;
+			condensed.data(added, obj[added]);
 		}
 
 		var text = "";
 
-		for (var j in types) {
-			var messageType = types[j];
+		for (var j in condensedTypes) {
+			var messageType = condensedTypes[j];
 			if (obj[messageType]) {
 				text += text === "" ? "" : ", ";
 				text += obj[messageType] + " " + messageType;
@@ -338,22 +347,24 @@ $(function() {
 				text += obj[messageType] > 1 ? "s" : "";
 			}
 		}
-		$(condensed.children(".text")[0]).text(text);
+		condensed.children(".condensed-msg").text(text);
 	}
 
 	function appendMessage(container, chan, chanType, messageType, msg) {
-		if (["join", "part", "quit", "nick", "mode"].indexOf(messageType) !== -1 && chanType !== "lobby") {
+		if (condensedTypes.indexOf(messageType) !== -1 && chanType !== "lobby") {
+			var condensedTypesClasses = "." + condensedTypes.join(", .");
 			var lastChild = container.children("div.msg").last();
-			if (lastChild && $(lastChild).hasClass("condensed") && !$(msg).hasClass("message")) {
+			var lastDate = (new Date(lastChild.attr("data-time"))).toDateString();
+			var msgDate = (new Date(msg.attr("data-time"))).toDateString();
+			if (lastChild && $(lastChild).hasClass("condensed") && !$(msg).hasClass("message") && lastDate === msgDate) {
 				lastChild.append(msg);
-				updateCondensedText(lastChild, messageType);
-			} else if (lastChild && $(lastChild).is(".join, .part, .quit, .nick, .mode")) {
+				updateCondensedText(lastChild, [messageType]);
+			} else if (lastChild && $(lastChild).is(condensedTypesClasses)) {
 				var condensed = buildChatMessage({msg: {type: "condensed", time: msg.attr("data-time")}, chan: chan});
 				condensed.append(lastChild);
-				updateCondensedText(condensed, lastChild.attr("data-type"));
 				condensed.append(msg);
 				container.append(condensed);
-				updateCondensedText(condensed, messageType);
+				updateCondensedText(condensed, [messageType, lastChild.attr("data-type")]);
 			} else {
 				container.append(msg);
 			}
@@ -408,9 +419,8 @@ $(function() {
 
 				if (lastDate.toDateString() !== msgDate.toDateString()) {
 					var parent = msg.parent();
-					if (msg.parent().hasClass("condensed")) {
-						var detached = msg.detach();
-						detached.insertAfter(parent);
+					if (parent.hasClass("condensed")) {
+						msg.insertAfter(parent);
 					}
 					msg.before(render("date-marker", {msgDate: msgDate}));
 				}
@@ -487,14 +497,13 @@ $(function() {
 		if (prevMsgTime.toDateString() !== msgTime.toDateString()) {
 			var parent = prevMsg.parent();
 			if (parent.hasClass("condensed")) {
-				parent.append(render("date-marker", {msgDate: msgTime}));
-			} else {
-				prevMsg.append(render("date-marker", {msgDate: msgTime}));
+				prevMsg = parent;
 			}
+			prevMsg.after(render("date-marker", {msgDate: msgTime}));
 		}
 
 
-		appendMessage(container, data.chan, undefined, data.msg.type, msg);
+		appendMessage(container, data.chan, $(target).attr("data-type"), data.msg.type, msg);
 
 		container.trigger("msg", [
 			target,
@@ -553,9 +562,8 @@ $(function() {
 
 			if (lastDate.toDateString() !== msgDate.toDateString()) {
 				var parent = msg.parent();
-				if (msg.parent().hasClass("condensed")) {
-					var detached = msg.detach();
-					detached.insertAfter(parent);
+				if (parent.hasClass("condensed")) {
+					msg.insertAfter(parent);
 				}
 				msg.before(render("date-marker", {msgDate: msgDate}));
 			}
