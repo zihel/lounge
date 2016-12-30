@@ -7,6 +7,7 @@ module.exports = {
 	entry: {
 		app: path.resolve(__dirname, "client/js/lounge.js"),
 		vendor: [
+			"fuzzy",
 			"handlebars/runtime",
 			"jquery",
 			"jquery-ui/ui/widgets/sortable",
