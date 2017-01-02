@@ -1108,7 +1108,7 @@ $(function() {
 	});
 
 	chat.on("input", ".search", function() {
-		const value = $(this).val().toLowerCase();
+		const value = $(this).val();
 		const names = $(this).closest(".users").find(".names");
 
 		names.find(".user").each((i, el) => {
@@ -1118,7 +1118,7 @@ $(function() {
 		const fuzzyOptions = {
 			pre: "<b>",
 			post: "</b>",
-			extract: el => $(el).text().toLowerCase().replace(/[+%@~]/, "")
+			extract: el => $(el).text()
 		};
 
 		fuzzy.filter(
@@ -1126,8 +1126,7 @@ $(function() {
 			names.find(".user").toArray(),
 			fuzzyOptions
 		).forEach(el => {
-			const firstChar = $(el.original).text()[0].replace(/[^+%@~]/, "");
-			$(el.original).html(firstChar + el.string).show();
+			$(el.original).html(el.string).show();
 		});
 	});
 
