@@ -6,13 +6,16 @@ node_js:
 
 matrix:
   fast_finish: true
+  include:
+    - node_js: 7 # Version used to deploy to npm registry
+      env: BUILD_ENV=production
 
 cache:
   directories:
     - ~/.npm
 
 before_script:
-  - npm run build
+  - NODE_ENV=$BUILD_ENV npm run build
 
 notifications:
   email:
